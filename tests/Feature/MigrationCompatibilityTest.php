@@ -47,7 +47,7 @@ class MigrationCompatibilityTest extends TestCase
     public function test_operational_tables_have_expected_columns(): void
     {
         $expectedColumns = [
-            'employee_profiles' => ['user_id', 'employee_number', 'position', 'hired_at', 'base_salary', 'employment_status'],
+            'employee_profiles' => ['user_id', 'employee_number', 'position', 'shift_id', 'hired_at', 'base_salary', 'employment_status'],
             'shifts' => ['name', 'starts_at', 'ends_at', 'is_active'],
             'attendances' => ['user_id', 'shift_id', 'attendance_date', 'check_in_at', 'check_out_at', 'status', 'late_minutes'],
             'stock_items' => ['sku', 'name', 'unit', 'quantity', 'minimum_quantity', 'unit_cost', 'is_active'],

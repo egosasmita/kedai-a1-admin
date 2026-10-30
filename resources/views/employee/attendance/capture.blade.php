@@ -9,9 +9,8 @@
 @section('active', $isCheckIn ? 'check-in' : 'check-out')
 
 @section('content')
-    @php
-        $profile = \Illuminate\Support\Facades\DB::table('employee_profiles')->where('user_id', auth()->id())->first();
-        $pageTitle = $isCheckIn ? 'Absen Masuk' : 'Absen Pulang';
+@php
+    $pageTitle = $isCheckIn ? 'Absen Masuk' : 'Absen Pulang';
         $submitText = $isCheckIn ? 'Simpan Absen Masuk' : 'Simpan Absen Pulang';
     @endphp
     <section class="capture-page-heading">
@@ -53,20 +52,16 @@
             <small>WIB · Waktu perangkat server</small>
             <div class="capture-date-row"><span>Tanggal sekarang</span><strong>{{ now()->locale('id')->translatedFormat('j F Y') }}</strong></div>
             @if ($isCheckIn)
-                <label class="capture-shift-field">
-                    <span>Shift hari ini</span>
-                    <select name="shift_id" form="attendance-capture-form" required>
-                        <option value="">Pilih shift</option>
-                        @foreach ($shifts as $shift)
-                            <option value="{{ $shift->id }}" @selected((string) $selectedShift === (string) $shift->id)>{{ $shift->name }} · {{ \Illuminate\Support\Carbon::parse($shift->starts_at)->format('H:i') }}–{{ \Illuminate\Support\Carbon::parse($shift->ends_at)->format('H:i') }}</option>
-                        @endforeach
-                    </select>
-                    @if ($shifts->isEmpty())<small class="capture-inline-warning">Belum ada shift aktif. Hubungi admin untuk membuat jadwal.</small>@endif
-                </label>
+                <div class="capture-location-card">
+                    <strong>Shift tetap</strong>
+                    <span>{{ $assignedShift->name }} · {{ \Illuminate\Support\Carbon::parse($assignedShift->starts_at)->format('H:i') }}–{{ \Illuminate\Support\Carbon::parse($assignedShift->ends_at)->format('H:i') }} WIB</span>
+                    <small>Absen masuk dibuka 15 menit sebelum shift. Lebih dari 15 menit setelah mulai akan tercatat terlambat.</small>
+                </div>
             @else
                 <div class="capture-location-card">
                     <strong>✓ Absen masuk hari ini</strong>
                     <span>{{ \Illuminate\Support\Carbon::parse($attendance->check_in_at)->format('H:i') }} WIB · {{ $attendance->shift_name ?? 'Shift tidak ditentukan' }}</span>
+                    <small>Absen pulang dapat dilakukan selama shift hingga 15 menit setelah shift berakhir.</small>
                 </div>
             @endif
             <div class="capture-location-card" data-location-summary>

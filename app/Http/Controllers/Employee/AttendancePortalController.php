@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Employee;
 
 use App\Http\Controllers\Controller;
+use App\Services\AttendanceShiftService;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -30,8 +31,18 @@ class AttendancePortalController extends Controller
                 'shifts.ends_at',
             ]);
         $profile = DB::table('employee_profiles')->where('user_id', $user->id)->first();
-        $activeShifts = DB::table('shifts')->where('is_active', true)->orderBy('sort_order')->get();
-        $currentShift = $todayAttendance ? null : $this->currentShift($activeShifts);
+        $assignedShift = $this->assignedShift($user->id);
+        $currentShift = $todayAttendance ? null : $assignedShift;
+        $shiftService = app(AttendanceShiftService::class);
+        $checkInAllowed = ! $todayAttendance && $assignedShift !== null
+            && $shiftService->checkInWindow($assignedShift, now()) !== null;
+        $checkOutAllowed = $todayAttendance !== null && $todayAttendance->check_in_at !== null
+            && $todayAttendance->check_out_at === null
+            && $todayAttendance->starts_at !== null
+            && $shiftService->checkOutWindow((object) [
+                'starts_at' => $todayAttendance->starts_at,
+                'ends_at' => $todayAttendance->ends_at,
+            ], now()) !== null;
         $monthStart = today()->startOfMonth()->toDateString();
         $monthEnd = today()->endOfMonth()->toDateString();
         $monthRows = DB::table('attendances')
@@ -64,7 +75,9 @@ class AttendancePortalController extends Controller
             'profile' => $profile,
             'attendance' => $todayAttendance,
             'currentShift' => $currentShift,
-            'activeShifts' => $activeShifts,
+            'assignedShift' => $assignedShift,
+            'checkInAllowed' => $checkInAllowed,
+            'checkOutAllowed' => $checkOutAllowed,
             'monthCount' => $monthRows->whereIn('status', ['present', 'late'])->count(),
             'monthLateCount' => $monthRows->where('status', 'late')->count(),
             'workMinutes' => $workMinutes,
@@ -80,13 +93,20 @@ class AttendancePortalController extends Controller
                 ->with('status', 'Absensi masuk hari ini sudah tercatat.');
         }
 
-        $shifts = DB::table('shifts')->where('is_active', true)->orderBy('sort_order')->get();
+        $shift = $this->assignedShift($request->user()->id);
+        if ($shift === null) {
+            return redirect()->route('employee.dashboard')
+                ->with('status', 'Kamu belum memiliki shift tetap yang aktif. Hubungi admin.');
+        }
+        if (app(AttendanceShiftService::class)->checkInWindow($shift, now()) === null) {
+            return redirect()->route('employee.dashboard')
+                ->with('status', 'Absen masuk tersedia mulai 15 menit sebelum shift hingga shift berakhir.');
+        }
 
         return view('employee.attendance.capture', [
             'actionType' => 'check-in',
             'attendance' => null,
-            'shifts' => $shifts,
-            'selectedShift' => $this->currentShift($shifts)?->id,
+            'assignedShift' => $shift,
         ]);
     }
 
@@ -101,55 +121,73 @@ class AttendancePortalController extends Controller
             return redirect()->route('employee.dashboard')
                 ->with('status', 'Absensi pulang hari ini sudah tercatat.');
         }
+        if ($attendance->starts_at === null
+            || app(AttendanceShiftService::class)->checkOutWindow((object) [
+                'starts_at' => $attendance->starts_at,
+                'ends_at' => $attendance->ends_at,
+            ], now()) === null) {
+            return redirect()->route('employee.dashboard')
+                ->with('status', 'Absen pulang hanya tersedia selama shift hingga 15 menit setelah shift berakhir.');
+        }
 
         return view('employee.attendance.capture', [
             'actionType' => 'check-out',
             'attendance' => $attendance,
-            'shifts' => collect(),
-            'selectedShift' => null,
+            'assignedShift' => null,
         ]);
     }
 
     public function checkIn(Request $request): RedirectResponse
     {
-        $validated = $this->validatedProof($request, true);
+        $validated = $this->validatedProof($request);
         $userId = $request->user()->id;
+        $shift = $this->assignedShift($userId);
+        if ($shift === null) {
+            throw ValidationException::withMessages([
+                'attendance' => 'Kamu belum memiliki shift tetap yang aktif. Hubungi admin.',
+            ]);
+        }
+        if (app(AttendanceShiftService::class)->checkInWindow($shift, now()) === null) {
+            throw ValidationException::withMessages([
+                'attendance' => 'Absen masuk tersedia mulai 15 menit sebelum shift hingga shift berakhir.',
+            ]);
+        }
         $photoPath = $this->storePhoto($request);
 
         try {
             DB::transaction(function () use ($validated, $userId, $photoPath): void {
+                $shift = $this->assignedShift($userId, true);
+                if ($shift === null) {
+                    throw ValidationException::withMessages([
+                        'attendance' => 'Kamu belum memiliki shift tetap yang aktif. Hubungi admin.',
+                    ]);
+                }
+
+                $now = now();
+                $window = app(AttendanceShiftService::class)->checkInWindow($shift, $now);
+                if ($window === null) {
+                    throw ValidationException::withMessages([
+                        'attendance' => 'Waktu absen masuk sudah di luar jadwal shift.',
+                    ]);
+                }
+                $attendanceDate = $window['start']->toDateString();
                 $exists = DB::table('attendances')
                     ->where('user_id', $userId)
-                    ->whereDate('attendance_date', today())
+                    ->whereDate('attendance_date', $attendanceDate)
                     ->lockForUpdate()
                     ->exists();
 
                 if ($exists) {
                     throw ValidationException::withMessages([
-                        'attendance' => 'Absensi masuk hari ini sudah tercatat.',
+                        'attendance' => 'Absensi untuk shift ini sudah tercatat.',
                     ]);
                 }
 
-                $shift = null;
-                if (isset($validated['shift_id']) && $validated['shift_id'] !== '') {
-                    $shift = DB::table('shifts')
-                        ->where('id', $validated['shift_id'])
-                        ->where('is_active', true)
-                        ->first();
-
-                    if ($shift === null) {
-                        throw ValidationException::withMessages([
-                            'shift_id' => 'Shift yang dipilih sudah tidak aktif.',
-                        ]);
-                    }
-                }
-
-                $now = now();
-                $lateMinutes = $shift === null ? 0 : $this->lateMinutes($shift, $now);
+                $lateMinutes = app(AttendanceShiftService::class)->lateMinutes($window, $now);
                 DB::table('attendances')->insert([
                     'user_id' => $userId,
-                    'shift_id' => $shift?->id,
-                    'attendance_date' => today()->toDateString(),
+                    'shift_id' => $shift->id,
+                    'attendance_date' => $attendanceDate,
                     'check_in_at' => $now,
                     'check_in_photo_path' => $photoPath,
                     'check_in_latitude' => $validated['latitude'],
@@ -171,17 +209,30 @@ class AttendancePortalController extends Controller
 
     public function checkOut(Request $request): RedirectResponse
     {
-        $validated = $this->validatedProof($request, false);
+        $validated = $this->validatedProof($request);
         $userId = $request->user()->id;
+        $attendance = $this->todayAttendance($userId);
+        if ($attendance === null || $attendance->check_in_at === null || $attendance->check_out_at !== null
+            || $attendance->starts_at === null
+            || app(AttendanceShiftService::class)->checkOutWindow((object) [
+                'starts_at' => $attendance->starts_at,
+                'ends_at' => $attendance->ends_at,
+            ], now()) === null) {
+            throw ValidationException::withMessages([
+                'attendance' => 'Absen pulang hanya tersedia selama shift hingga 15 menit setelah shift berakhir.',
+            ]);
+        }
         $photoPath = $this->storePhoto($request);
+        $attendanceDate = Carbon::parse($attendance->attendance_date)->toDateString();
 
         try {
-            DB::transaction(function () use ($validated, $userId, $photoPath): void {
+            DB::transaction(function () use ($validated, $userId, $photoPath, $attendanceDate): void {
                 $attendance = DB::table('attendances')
+                    ->leftJoin('shifts', 'shifts.id', '=', 'attendances.shift_id')
                     ->where('user_id', $userId)
-                    ->whereDate('attendance_date', today())
+                    ->whereDate('attendance_date', $attendanceDate)
                     ->lockForUpdate()
-                    ->first();
+                    ->first(['attendances.*', 'shifts.starts_at', 'shifts.ends_at']);
 
                 if ($attendance === null || $attendance->check_in_at === null) {
                     throw ValidationException::withMessages([
@@ -191,6 +242,16 @@ class AttendancePortalController extends Controller
                 if ($attendance->check_out_at !== null) {
                     throw ValidationException::withMessages([
                         'attendance' => 'Absen pulang hari ini sudah tercatat.',
+                    ]);
+                }
+
+                if ($attendance->starts_at === null
+                    || app(AttendanceShiftService::class)->checkOutWindow((object) [
+                        'starts_at' => $attendance->starts_at,
+                        'ends_at' => $attendance->ends_at,
+                    ], now()) === null) {
+                    throw ValidationException::withMessages([
+                        'attendance' => 'Waktu absen pulang sudah di luar jadwal shift.',
                     ]);
                 }
 
@@ -262,10 +323,15 @@ class AttendancePortalController extends Controller
 
     private function todayAttendance(int $userId): ?object
     {
+        $shift = $this->assignedShift($userId, false, false);
+        $attendanceDate = $shift === null
+            ? today()->toDateString()
+            : app(AttendanceShiftService::class)->attendanceDate($shift, now());
+
         return DB::table('attendances')
             ->leftJoin('shifts', 'shifts.id', '=', 'attendances.shift_id')
             ->where('attendances.user_id', $userId)
-            ->whereDate('attendances.attendance_date', today())
+            ->whereDate('attendances.attendance_date', $attendanceDate)
             ->first([
                 'attendances.*',
                 'shifts.name as shift_name',
@@ -274,52 +340,31 @@ class AttendancePortalController extends Controller
             ]);
     }
 
-    private function currentShift(iterable $shifts): ?object
+    private function assignedShift(int $userId, bool $lock = false, bool $activeOnly = true): ?object
     {
-        $now = now()->format('H:i:s');
+        $query = DB::table('employee_profiles')
+            ->join('shifts', 'shifts.id', '=', 'employee_profiles.shift_id')
+            ->where('employee_profiles.user_id', $userId)
+            ->when($activeOnly, fn (Builder $query) => $query->where('shifts.is_active', true))
+            ->select(['shifts.id', 'shifts.name', 'shifts.starts_at', 'shifts.ends_at']);
 
-        foreach ($shifts as $shift) {
-            $isCurrent = $shift->starts_at <= $shift->ends_at
-                ? $now >= $shift->starts_at && $now < $shift->ends_at
-                : $now >= $shift->starts_at || $now < $shift->ends_at;
-
-            if ($isCurrent) {
-                return $shift;
-            }
+        if ($lock) {
+            $query->lockForUpdate();
         }
 
-        return null;
-    }
-
-    private function lateMinutes(object $shift, Carbon $checkInAt): int
-    {
-        $shiftStart = Carbon::parse(today()->toDateString().' '.$shift->starts_at);
-
-        if ($shift->ends_at < $shift->starts_at && $checkInAt->format('H:i:s') < $shift->ends_at) {
-            $shiftStart->subDay();
-        }
-
-        return $checkInAt->greaterThan($shiftStart)
-            ? (int) ceil($shiftStart->diffInSeconds($checkInAt) / 60)
-            : 0;
+        return $query->first();
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function validatedProof(Request $request, bool $includeShift): array
+    private function validatedProof(Request $request): array
     {
         return $request->validate([
             'photo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
             'location_accuracy' => ['nullable', 'numeric', 'min:0', 'max:10000'],
-            'shift_id' => [
-                Rule::requiredIf($includeShift),
-                'nullable',
-                'integer',
-                Rule::exists('shifts', 'id')->where(fn (Builder $query) => $query->where('is_active', true)),
-            ],
         ]);
     }
 

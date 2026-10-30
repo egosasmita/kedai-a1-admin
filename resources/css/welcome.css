@@ -60,7 +60,7 @@ input {
     align-items: center;
     gap: 10px;
     color: rgb(255 253 240 / 86%);
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 500;
     letter-spacing: .12em;
 }
@@ -90,7 +90,7 @@ input {
     max-width: 410px;
     margin: 0;
     color: rgb(255 253 240 / 74%);
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.8;
 }
 
@@ -110,13 +110,13 @@ input {
 
 .seal span:first-child {
     font-family: "Playfair Display", Georgia, serif;
-    font-size: 25px;
+    font-size: 28px;
     line-height: 1;
 }
 
 .seal span:last-child {
     margin-top: 5px;
-    font-size: 7px;
+    font-size: 8px;
     letter-spacing: .1em;
 }
 
@@ -148,7 +148,7 @@ input {
     display: grid;
     gap: 1px;
     font-family: "Playfair Display", Georgia, serif;
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 500;
     line-height: 1.1;
 }
@@ -156,7 +156,7 @@ input {
 .brand-name small {
     color: #a88637;
     font-family: "DM Sans", Arial, sans-serif;
-    font-size: 7px;
+    font-size: 8px;
     font-weight: 600;
     letter-spacing: .12em;
 }
@@ -170,7 +170,7 @@ input {
 .eyebrow {
     margin: 0 0 9px;
     color: #a88637;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: .12em;
 }
@@ -193,14 +193,14 @@ input {
 .intro {
     margin: 10px 0 25px;
     color: #858476;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.7;
 }
 
 .form-error {
     margin: 0 0 12px;
     color: #a33e32;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.6;
 }
 
@@ -213,7 +213,7 @@ input {
     display: block;
     margin-bottom: 7px;
     color: #34473d;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
 }
 
@@ -241,7 +241,7 @@ input {
     outline: none;
     background: #fffef9;
     color: #253c30;
-    font-size: 11px;
+    font-size: 12px;
     transition: border-color .18s, box-shadow .18s;
 }
 
@@ -282,7 +282,7 @@ input {
     justify-content: space-between;
     gap: 12px;
     margin: 13px 0 18px;
-    font-size: 10px;
+    font-size: 11px;
 }
 
 .remember {
@@ -318,7 +318,7 @@ input {
     background: #173b2d;
     box-shadow: 0 5px 12px rgb(23 59 45 / 10%);
     color: #fffdf0;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 500;
     cursor: pointer;
     transition: background .18s, transform .18s;
@@ -340,7 +340,7 @@ input {
     justify-content: center;
     gap: 8px;
     color: #9a9989;
-    font-size: 9px;
+    font-size: 10px;
     text-align: center;
 }
 
@@ -379,7 +379,7 @@ input {
 
     .story-copy p {
         max-width: 390px;
-        font-size: 11px;
+        font-size: 12px;
     }
 
     .seal {
@@ -402,7 +402,7 @@ input {
     }
 
     .security-note {
-        font-size: 8px;
+        font-size: 9px;
     }
 }
 
@@ -412,7 +412,7 @@ input {
     }
 
     .story-copy h1 {
-        font-size: 34px;
+        font-size: 37px;
     }
 
     .form-panel {

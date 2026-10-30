@@ -70,8 +70,7 @@
         <article class="stat-card stat-card-dark"><div class="stat-topline"><span>Perlu restok</span><span class="stat-icon">!</span></div><div class="stat-bottomline"><strong>{{ number_format($lowStockCount, 0, ',', '.') }}</strong><span>di bawah batas minimum</span></div></article>
     </section>
 
-    <section class="ops-two-column">
-        <article class="dashboard-card ops-table-card">
+    <section class="dashboard-card ops-table-card">
             <div class="menu-list-heading">
                 <div><h2>Daftar bahan baku</h2><p>Stok diperbarui otomatis setiap transaksi</p></div>
                 @if (request()->hasAny(['search', 'condition']))<a class="menu-clear-filter" href="{{ route('admin.stock.index') }}">Hapus filter</a>@endif
@@ -103,9 +102,9 @@
                 </div>
                 <div class="menu-pagination"><span>Menampilkan {{ $items->firstItem() }}–{{ $items->lastItem() }} dari {{ $items->total() }} bahan</span>{{ $items->onEachSide(1)->links('pagination::simple-tailwind') }}</div>
             @endif
-        </article>
+    </section>
 
-        <article class="dashboard-card ops-history-card">
+    <section class="dashboard-card ops-history-card ops-full-width-card">
             <div class="card-heading"><div><h2>Riwayat stok</h2><p>Transaksi terbaru</p></div><form method="GET" action="{{ route('admin.stock.index') }}"><input type="hidden" name="search" value="{{ request('search') }}"><input type="hidden" name="condition" value="{{ request('condition') }}"><select class="ops-compact-select" name="history" aria-label="Filter riwayat" onchange="this.form.submit()"><option value="all">Semua</option><option value="in" @selected(request('history') === 'in')>Masuk</option><option value="out" @selected(request('history') === 'out')>Keluar</option></select></form></div>
             @forelse ($transactions as $transaction)
                 <div class="ops-history-row">
@@ -116,6 +115,5 @@
             @empty
                 <p class="dashboard-empty">Belum ada transaksi stok.</p>
             @endforelse
-        </article>
     </section>
 @endsection

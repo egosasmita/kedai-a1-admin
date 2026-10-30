@@ -28,8 +28,7 @@
         <article class="stat-card"><div class="stat-topline"><span>Total potongan</span><span class="stat-icon">−</span></div><div class="stat-bottomline"><strong>Rp {{ number_format((float) $totals->deductions_total, 0, ',', '.') }}</strong><span>periode terpilih</span></div></article>
     </section>
 
-    <section class="ops-two-column payroll-workspace">
-        <article class="dashboard-card ops-table-card">
+    <section class="dashboard-card ops-table-card">
             <div class="menu-list-heading">
                 <div><h2>Daftar penggajian</h2><p>{{ $period?->name ?? 'Periode belum diproses' }} · {{ $period ? \Illuminate\Support\Carbon::parse($period->starts_on)->format('d').'–'.\Illuminate\Support\Carbon::parse($period->ends_on)->locale('id')->translatedFormat('d F Y') : 'belum ada data' }}</p></div>
                 @if ($period)<span class="ops-badge is-{{ $period->status }}">{{ ['draft' => 'Draft', 'calculated' => 'Dihitung', 'approved' => 'Disetujui', 'paid' => 'Lunas'][$period->status] ?? $period->status }}</span>@endif
@@ -43,7 +42,7 @@
                         <tbody>
                         @foreach ($payrolls as $payroll)
                             <tr @class(['is-selected' => $selectedPayroll && $selectedPayroll->id === $payroll->id])>
-                                <td><a class="payroll-person-link" href="{{ route('admin.payroll.index', ['month' => $month, 'status' => request('status', 'all'), 'payroll' => $payroll->id]) }}"><div class="ops-person"><span class="employee-avatar">{{ collect(explode(' ', $payroll->name))->take(2)->map(fn ($part) => mb_strtoupper(mb_substr($part, 0, 1)))->implode('') }}</span><span class="employee-info"><strong>{{ $payroll->name }}</strong><small>{{ $payroll->position ?: 'Karyawan' }}</small></span></div></a></td>
+                                <td><a class="payroll-person-link" href="{{ route('admin.payroll.index', ['month' => $month, 'status' => request('status', 'all'), 'payroll' => $payroll->id]) }}" aria-haspopup="dialog"><div class="ops-person"><span class="employee-avatar">{{ collect(explode(' ', $payroll->name))->take(2)->map(fn ($part) => mb_strtoupper(mb_substr($part, 0, 1)))->implode('') }}</span><span class="employee-info"><strong>{{ $payroll->name }}</strong><small>{{ $payroll->position ?: 'Karyawan' }}</small></span></div></a></td>
                                 <td>{{ $payroll->attendance_days }} hari</td>
                                 <td>Rp {{ number_format((float) $payroll->base_salary, 0, ',', '.') }}</td>
                                 <td class="payroll-deduction">Rp {{ number_format((float) $payroll->deductions, 0, ',', '.') }}</td>
@@ -57,11 +56,18 @@
                 <div class="menu-pagination"><span>Menampilkan {{ $payrolls->firstItem() }}–{{ $payrolls->lastItem() }} dari {{ $payrolls->total() }} karyawan</span>{{ $payrolls->onEachSide(1)->links('pagination::simple-tailwind') }}</div>
             @endif
             <p class="payroll-footnote">Gaji pokok dan jumlah kehadiran diambil dari data karyawan serta absensi periode terpilih. Tambahkan komponen upah untuk memperbarui gaji akhir.</p>
-        </article>
+    </section>
 
-        <aside class="dashboard-card payroll-detail-card">
-            @if ($selectedPayroll)
-                <div class="card-heading"><div><h2>Rincian gaji</h2><p>{{ $period->name }} · #{{ $selectedPayroll->id }}</p></div><span class="ops-badge is-{{ $selectedPayroll->status }}">{{ ['draft' => 'Draft', 'review' => 'Perlu ditinjau', 'ready' => 'Siap dibayar', 'paid' => 'Dibayar'][$selectedPayroll->status] ?? $selectedPayroll->status }}</span></div>
+    @if ($selectedPayroll)
+        <dialog class="ops-dialog" data-open-on-load aria-labelledby="payroll-detail-title">
+            <section class="dashboard-card payroll-detail-card">
+                <div class="card-heading">
+                    <div><h2 id="payroll-detail-title">Rincian gaji</h2><p>{{ $period->name }} · #{{ $selectedPayroll->id }}</p></div>
+                    <div class="ops-toolbar-actions">
+                        <span class="ops-badge is-{{ $selectedPayroll->status }}">{{ ['draft' => 'Draft', 'review' => 'Perlu ditinjau', 'ready' => 'Siap dibayar', 'paid' => 'Dibayar'][$selectedPayroll->status] ?? $selectedPayroll->status }}</span>
+                        <a class="editor-close" href="{{ route('admin.payroll.index', ['month' => $month, 'status' => request('status', 'all')]) }}" aria-label="Tutup rincian gaji">×</a>
+                    </div>
+                </div>
                 <div class="payroll-employee-summary"><span class="employee-avatar">{{ collect(explode(' ', $selectedPayroll->name))->take(2)->map(fn ($part) => mb_strtoupper(mb_substr($part, 0, 1)))->implode('') }}</span><span><strong>{{ $selectedPayroll->name }}</strong><small>{{ $selectedPayroll->position ?: 'Karyawan' }} · {{ $selectedPayroll->attendance_days }} hari hadir</small></span></div>
                 <div class="payroll-breakdown">
                     <h3>Perhitungan gaji</h3>
@@ -106,9 +112,7 @@
                         <div class="payroll-payment-history"><span>{{ ['cash' => 'Tunai', 'bank_transfer' => 'Transfer bank', 'e_wallet' => 'E-wallet', 'other' => 'Lainnya'][$payment->method] }} · {{ \Illuminate\Support\Carbon::parse($payment->paid_at)->format('d M Y, H:i') }}</span><strong>Rp {{ number_format((float) $payment->amount, 0, ',', '.') }}</strong></div>
                     @endforeach
                 @endif
-            @else
-                <div class="menu-empty-state payroll-empty-detail"><span class="menu-empty-icon">Rp</span><h3>Pilih data penggajian</h3><p>Proses periode gaji dan pilih karyawan untuk melihat rinciannya.</p></div>
-            @endif
-        </aside>
-    </section>
+            </section>
+        </dialog>
+    @endif
 @endsection

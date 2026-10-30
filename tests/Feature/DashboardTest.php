@@ -114,7 +114,8 @@ class DashboardTest extends TestCase
             ->assertSee('Susu segar')
             ->assertSee('Shift Siang')
             ->assertSee('Ayu Lestari')
-            ->assertSee('Stok masuk');
+            ->assertSee('Stok masuk')
+            ->assertSeeInOrder(['Absensi 7 hari', 'Kesehatan stok', 'Aktivitas terbaru', 'Aksi cepat']);
     }
 
     public function test_dashboard_handles_empty_operational_data_without_fabricating_activity(): void

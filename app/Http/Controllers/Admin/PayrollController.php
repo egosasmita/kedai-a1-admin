@@ -51,7 +51,7 @@ class PayrollController extends Controller
             ->first();
         $selectedPayroll = isset($validated['payroll'])
             ? (clone $payrollQuery)->where('payrolls.id', $validated['payroll'])->first()
-            : $payrolls->first();
+            : null;
         $payrollItems = $selectedPayroll
             ? DB::table('payroll_items')->where('payroll_id', $selectedPayroll->id)->orderBy('created_at')->get()
             : collect();

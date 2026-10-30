@@ -31,7 +31,13 @@
             <h2>{{ $attendance ? ($statusLabels[$attendance->status] ?? 'Absensi tercatat') : 'Belum Absen' }}</h2>
             <p>
                 @if (! $attendance)
-                    Siap memulai hari? Catat kehadiran sebelum mulai bekerja.
+                    @if (! $assignedShift)
+                        Shift tetap belum tersedia. Hubungi admin untuk menetapkan jadwal.
+                    @elseif ($checkInAllowed)
+                        Absen masuk dibuka 15 menit sebelum shift dimulai. Setelah toleransi 15 menit, status akan tercatat terlambat.
+                    @else
+                        Absen masuk dapat dilakukan mulai 15 menit sebelum shift hingga shift berakhir.
+                    @endif
                 @elseif (! $attendance->check_out_at)
                     Absen masuk tercatat. Jangan lupa absen pulang setelah shift selesai.
                 @else
@@ -46,8 +52,8 @@
             <div class="employee-today-footer">
                 @if ($attendance?->shift_name)
                     {{ $attendance->shift_name }} · {{ \Illuminate\Support\Carbon::parse($attendance->starts_at)->format('H:i') }}–{{ \Illuminate\Support\Carbon::parse($attendance->ends_at)->format('H:i') }} WIB
-                @elseif ($currentShift)
-                    {{ $currentShift->name }} · {{ \Illuminate\Support\Carbon::parse($currentShift->starts_at)->format('H:i') }}–{{ \Illuminate\Support\Carbon::parse($currentShift->ends_at)->format('H:i') }} WIB
+                @elseif ($assignedShift)
+                    {{ $assignedShift->name }} · {{ \Illuminate\Support\Carbon::parse($assignedShift->starts_at)->format('H:i') }}–{{ \Illuminate\Support\Carbon::parse($assignedShift->ends_at)->format('H:i') }} WIB
                 @else
                     Shift hari ini belum ditentukan
                 @endif
@@ -58,17 +64,26 @@
         </article>
         <article class="employee-quick-card">
             <h2>Shift saya hari ini</h2>
-            <div class="employee-shift-detail"><span>Jadwal</span><strong>{{ $attendance?->shift_name ?? $currentShift?->name ?? 'Belum dijadwalkan' }}</strong></div>
-            <div class="employee-shift-detail"><span>Waktu</span><strong>{{ $attendance?->starts_at && $attendance?->ends_at ? \Illuminate\Support\Carbon::parse($attendance->starts_at)->format('H:i').'–'.\Illuminate\Support\Carbon::parse($attendance->ends_at)->format('H:i').' WIB' : ($currentShift ? \Illuminate\Support\Carbon::parse($currentShift->starts_at)->format('H:i').'–'.\Illuminate\Support\Carbon::parse($currentShift->ends_at)->format('H:i').' WIB' : '—') }}</strong></div>
+            <div class="employee-shift-detail"><span>Jadwal</span><strong>{{ $attendance?->shift_name ?? $assignedShift?->name ?? 'Belum dijadwalkan' }}</strong></div>
+            <div class="employee-shift-detail"><span>Waktu</span><strong>{{ $attendance?->starts_at && $attendance?->ends_at ? \Illuminate\Support\Carbon::parse($attendance->starts_at)->format('H:i').'–'.\Illuminate\Support\Carbon::parse($attendance->ends_at)->format('H:i').' WIB' : ($assignedShift ? \Illuminate\Support\Carbon::parse($assignedShift->starts_at)->format('H:i').'–'.\Illuminate\Support\Carbon::parse($assignedShift->ends_at)->format('H:i').' WIB' : '—') }}</strong></div>
             <h3>Aksi cepat</h3>
             @if (! $attendance)
-                <a class="employee-action-link" href="{{ route('employee.attendance.check-in') }}">↪ <span>Absen Masuk</span></a>
+                @if ($checkInAllowed)
+                    <a class="employee-action-link" href="{{ route('employee.attendance.check-in') }}">↪ <span>Absen Masuk</span></a>
+                @else
+                    <button class="employee-action-link is-disabled" type="button" disabled>↪ <span>Absen Masuk</span></button>
+                @endif
                 <button class="employee-action-link is-disabled" type="button" disabled>⇥ <span>Absen Pulang</span></button>
-                <small>Absen pulang tersedia setelah Absen Masuk.</small>
+                <small>{{ $checkInAllowed ? 'Absen pulang tersedia setelah Absen Masuk.' : 'Tombol absen masuk aktif sesuai jadwal tetap dan toleransi shift.' }}</small>
             @elseif (! $attendance->check_out_at)
                 <span class="employee-action-complete">✓ <span>Absen Masuk tercatat</span></span>
-                <a class="employee-action-link" href="{{ route('employee.attendance.check-out') }}">⇥ <span>Absen Pulang</span></a>
-                <small>Pastikan foto dan lokasi tersedia sebelum menyimpan.</small>
+                @if ($checkOutAllowed)
+                    <a class="employee-action-link" href="{{ route('employee.attendance.check-out') }}">⇥ <span>Absen Pulang</span></a>
+                    <small>Pastikan foto dan lokasi tersedia sebelum menyimpan.</small>
+                @else
+                    <button class="employee-action-link is-disabled" type="button" disabled>⇥ <span>Absen Pulang</span></button>
+                    <small>Absen pulang aktif selama shift hingga 15 menit setelah jadwal berakhir.</small>
+                @endif
             @else
                 <span class="employee-action-complete">✓ <span>Absensi hari ini lengkap</span></span>
                 <a class="employee-action-link is-secondary" href="{{ route('employee.attendance.history') }}">◷ <span>Lihat Riwayat</span></a>

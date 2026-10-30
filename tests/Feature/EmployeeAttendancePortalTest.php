@@ -38,6 +38,7 @@ class EmployeeAttendancePortalTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        DB::table('employee_profiles')->where('user_id', $employee->id)->update(['shift_id' => $shiftId]);
 
         $this->actingAs($employee)
             ->get(route('employee.dashboard'))
@@ -59,7 +60,7 @@ class EmployeeAttendancePortalTest extends TestCase
             'latitude' => '-7.8161200',
             'longitude' => '112.0115000',
             'location_accuracy' => '12.5',
-            'shift_id' => $shiftId,
+            'shift_id' => 999,
         ])->assertRedirect(route('employee.dashboard'));
 
         $attendance = DB::table('attendances')->where('user_id', $employee->id)->first();
@@ -105,7 +106,7 @@ class EmployeeAttendancePortalTest extends TestCase
                 'latitude' => '100',
                 'longitude' => '300',
             ])
-            ->assertSessionHasErrors(['photo', 'latitude', 'longitude', 'shift_id']);
+            ->assertSessionHasErrors(['photo', 'latitude', 'longitude']);
 
         $this->assertDatabaseCount('attendances', 0);
         $this->get(route('admin.stock.index'))->assertForbidden();
@@ -158,6 +159,58 @@ class EmployeeAttendancePortalTest extends TestCase
 
         $this->get(route('employee.attendance.check-out'))
             ->assertRedirect(route('employee.dashboard'));
+    }
+
+    public function test_employee_attendance_is_limited_to_the_assigned_shift_window(): void
+    {
+        Storage::fake('local');
+        $employee = User::factory()->create(['is_admin' => false]);
+        $shiftId = DB::table('shifts')->insertGetId([
+            'name' => 'Shift Pagi Terjadwal',
+            'starts_at' => '07:00:00',
+            'ends_at' => '15:00:00',
+            'is_active' => true,
+            'sort_order' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('employee_profiles')->insert([
+            'user_id' => $employee->id,
+            'position' => 'Barista',
+            'shift_id' => $shiftId,
+            'employment_status' => 'active',
+            'base_salary' => 3000000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->actingAs($employee);
+
+        $this->travelTo(today()->setTime(6, 44, 59));
+        $this->get(route('employee.attendance.check-in'))
+            ->assertRedirect(route('employee.dashboard'));
+        $this->post(route('employee.attendance.check-in.store'), [
+            'photo' => $this->fakeJpeg('too-early.jpg'),
+            'latitude' => '-7.8161200',
+            'longitude' => '112.0115000',
+        ])->assertSessionHasErrors('attendance');
+        $this->assertDatabaseCount('attendances', 0);
+
+        $this->travelTo(today()->setTime(7, 16));
+        $this->post(route('employee.attendance.check-in.store'), [
+            'photo' => $this->fakeJpeg('late-check-in.jpg'),
+            'latitude' => '-7.8161200',
+            'longitude' => '112.0115000',
+        ])->assertRedirect(route('employee.dashboard'));
+        $attendance = DB::table('attendances')->where('user_id', $employee->id)->first();
+        $this->assertSame('late', $attendance->status);
+
+        $this->travelTo(today()->setTime(15, 16));
+        $this->post(route('employee.attendance.check-out.store'), [
+            'photo' => $this->fakeJpeg('too-late-check-out.jpg'),
+            'latitude' => '-7.8161200',
+            'longitude' => '112.0115000',
+        ])->assertSessionHasErrors('attendance');
+        $this->assertNull(DB::table('attendances')->where('id', $attendance->id)->value('check_out_at'));
     }
 
     private function fakeJpeg(string $name): UploadedFile

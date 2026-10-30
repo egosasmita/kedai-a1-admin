@@ -18,19 +18,41 @@ class OperationalPagesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.stock.index'))
             ->assertOk()
-            ->assertSee('Daftar bahan baku');
+            ->assertSee('Daftar bahan baku')
+            ->assertSee('ops-history-card ops-full-width-card', false)
+            ->assertDontSee('ops-two-column', false);
 
         $this->get(route('admin.employees.index'))
             ->assertOk()
-            ->assertSee('Daftar karyawan');
+            ->assertSee('Daftar karyawan')
+            ->assertSee('data-dialog-open="employee-create-dialog"', false)
+            ->assertSee('<dialog class="ops-dialog"', false)
+            ->assertDontSee('employee-workspace', false);
 
         $this->get(route('admin.attendance.index'))
             ->assertOk()
-            ->assertSee('Rekap harian');
+            ->assertSee('Rekap harian')
+            ->assertSee('ops-month-card ops-full-width-card', false)
+            ->assertDontSee('attendance-workspace', false);
 
         $this->get(route('admin.payroll.index'))
             ->assertOk()
-            ->assertSee('Daftar penggajian');
+            ->assertSee('Daftar penggajian')
+            ->assertDontSee('payroll-workspace', false);
+    }
+
+    public function test_employee_creation_validation_reopens_the_dialog(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin)
+            ->from(route('admin.employees.index'))
+            ->post(route('admin.employees.store'), [])
+            ->assertRedirect(route('admin.employees.index'))
+            ->assertSessionHasErrors(['name', 'email', 'position', 'base_salary', 'password']);
+
+        $this->get(route('admin.employees.index'))
+            ->assertOk()
+            ->assertSee('data-open-on-load', false);
     }
 
     public function test_payroll_page_renders_for_a_period_without_payroll_rows(): void
@@ -104,6 +126,15 @@ class OperationalPagesTest extends TestCase
     public function test_admin_can_create_employee_account_and_profile(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
+        $shiftId = DB::table('shifts')->insertGetId([
+            'name' => 'Shift Barista',
+            'starts_at' => '07:00:00',
+            'ends_at' => '15:00:00',
+            'is_active' => true,
+            'sort_order' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
         $this->actingAs($admin)
             ->post(route('admin.employees.store'), [
                 'name' => 'Ayu Lestari',
@@ -112,6 +143,7 @@ class OperationalPagesTest extends TestCase
                 'password_confirmation' => 'KedaiA1Secure123',
                 'employee_number' => 'A1-001',
                 'position' => 'Barista',
+                'shift_id' => $shiftId,
                 'hired_at' => today()->toDateString(),
                 'base_salary' => 3500000,
             ])
@@ -124,8 +156,25 @@ class OperationalPagesTest extends TestCase
             'user_id' => $employee->id,
             'employee_number' => 'A1-001',
             'position' => 'Barista',
+            'shift_id' => $shiftId,
             'base_salary' => 3500000,
             'employment_status' => 'active',
+        ]);
+
+        $otherShiftId = DB::table('shifts')->insertGetId([
+            'name' => 'Shift Barista Sore',
+            'starts_at' => '15:00:00',
+            'ends_at' => '23:00:00',
+            'is_active' => true,
+            'sort_order' => 2,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->patch(route('admin.employees.shift.update', $employee->id), ['shift_id' => $otherShiftId])
+            ->assertRedirect(route('admin.employees.index'));
+        $this->assertDatabaseHas('employee_profiles', [
+            'user_id' => $employee->id,
+            'shift_id' => $otherShiftId,
         ]);
     }
 
@@ -150,6 +199,7 @@ class OperationalPagesTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        DB::table('employee_profiles')->where('user_id', $employee->id)->update(['shift_id' => $shiftId]);
 
         $this->actingAs($admin)
             ->post(route('admin.attendance.check-in'), [
@@ -165,6 +215,71 @@ class OperationalPagesTest extends TestCase
         $this->post(route('admin.attendance.check-out'), ['user_id' => $employee->id])
             ->assertRedirect(route('admin.attendance.index'));
 
+        $this->assertNotNull(DB::table('attendances')->where('id', $attendance->id)->value('check_out_at'));
+    }
+
+    public function test_attendance_respects_shift_windows_and_fifteen_minute_grace(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $employee = User::factory()->create(['is_admin' => false]);
+        $onTimeEmployee = User::factory()->create(['is_admin' => false]);
+        $shiftId = DB::table('shifts')->insertGetId([
+            'name' => 'Shift Tetap',
+            'starts_at' => '07:00:00',
+            'ends_at' => '15:00:00',
+            'is_active' => true,
+            'sort_order' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('employee_profiles')->insert([
+            'user_id' => $employee->id,
+            'position' => 'Barista',
+            'shift_id' => $shiftId,
+            'employment_status' => 'active',
+            'base_salary' => 3000000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('employee_profiles')->insert([
+            'user_id' => $onTimeEmployee->id,
+            'position' => 'Barista',
+            'shift_id' => $shiftId,
+            'employment_status' => 'active',
+            'base_salary' => 3000000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin);
+        $this->travelTo(today()->setTime(6, 44, 59));
+        $this->post(route('admin.attendance.check-in'), ['user_id' => $employee->id])
+            ->assertSessionHasErrors('user_id');
+        $this->assertDatabaseCount('attendances', 0);
+
+        $this->travelTo(today()->setTime(7, 15));
+        $this->get(route('admin.attendance.index'))->assertOk();
+        $this->post(route('admin.attendance.check-in'), ['user_id' => $onTimeEmployee->id])
+            ->assertRedirect(route('admin.attendance.index'));
+        $onTimeAttendance = DB::table('attendances')->where('user_id', $onTimeEmployee->id)->first();
+        $this->assertSame('present', $onTimeAttendance->status);
+        $this->assertSame(0, (int) $onTimeAttendance->late_minutes);
+
+        $this->travelTo(today()->setTime(7, 16));
+        $this->post(route('admin.attendance.check-in'), ['user_id' => $employee->id])
+            ->assertRedirect(route('admin.attendance.index'));
+        $attendance = DB::table('attendances')->where('user_id', $employee->id)->first();
+        $this->assertSame('late', $attendance->status);
+        $this->assertSame(16, (int) $attendance->late_minutes);
+
+        $this->travelTo(today()->setTime(15, 16));
+        $this->post(route('admin.attendance.check-out'), ['user_id' => $employee->id])
+            ->assertSessionHasErrors('user_id');
+        $this->assertNull(DB::table('attendances')->where('id', $attendance->id)->value('check_out_at'));
+
+        $this->travelTo(today()->setTime(15, 15));
+        $this->post(route('admin.attendance.check-out'), ['user_id' => $employee->id])
+            ->assertRedirect(route('admin.attendance.index'));
         $this->assertNotNull(DB::table('attendances')->where('id', $attendance->id)->value('check_out_at'));
     }
 
@@ -199,6 +314,11 @@ class OperationalPagesTest extends TestCase
         $this->assertNotNull($payroll);
         $this->assertSame(1, (int) $payroll->attendance_days);
         $this->assertSame(3200000.0, (float) $payroll->net_pay);
+
+        $this->get(route('admin.payroll.index', ['month' => $month, 'payroll' => $payroll->id]))
+            ->assertOk()
+            ->assertSee('data-open-on-load', false)
+            ->assertSee('Rincian gaji');
 
         $this->post(route('admin.payroll.items.store', $payroll->id), [
             'month' => $month,

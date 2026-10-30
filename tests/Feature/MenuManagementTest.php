@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Category;
 use App\Models\Menu;
 use App\Models\User;
+use Database\Seeders\MenuSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -23,7 +24,8 @@ class MenuManagementTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.menus.create'))
             ->assertOk()
-            ->assertSee('Tambah menu');
+            ->assertSee('Tambah menu')
+            ->assertSee('role="dialog"', false);
 
         $this->post(route('admin.menus.store'), [
             'name' => 'Aren Latte',
@@ -51,6 +53,10 @@ class MenuManagementTest extends TestCase
             ->assertSee('Daftar menu')
             ->assertSee('Aren Latte')
             ->assertSee('Rp 24.000');
+        $this->get(route('admin.menus.edit', $menu))
+            ->assertOk()
+            ->assertSee('Edit menu')
+            ->assertSee('role="dialog"', false);
 
         $this->put(route('admin.menus.update', $menu), [
             'name' => 'Aren Latte Spesial',
@@ -107,6 +113,30 @@ class MenuManagementTest extends TestCase
         $this->actingAs($employee)
             ->get(route('admin.menus.index'))
             ->assertForbidden();
+    }
+
+    public function test_menu_seeder_populates_sample_menu_items_idempotently(): void
+    {
+        $this->seed(MenuSeeder::class);
+        $this->seed(MenuSeeder::class);
+
+        $this->assertDatabaseCount('categories', 4);
+        $this->assertDatabaseCount('menus', 10);
+        $this->assertDatabaseHas('menus', [
+            'name' => 'Americano',
+            'price' => 13000,
+            'is_available' => true,
+        ]);
+        $this->assertDatabaseHas('menus', [
+            'name' => 'Nasi Katsu Mentai',
+            'price' => 13000,
+            'is_available' => true,
+        ]);
+        $this->assertDatabaseHas('menus', [
+            'name' => 'Mineral',
+            'price' => 5000,
+            'is_available' => true,
+        ]);
     }
 
     private function tinyPng(): string

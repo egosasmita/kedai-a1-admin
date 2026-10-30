@@ -29,33 +29,8 @@
         <x-admin.stat-card label="Stok Menipis" :value="$lowStockCount" detail="Perlu tindakan" icon="warning" :dark="true" />
     </section>
 
-    <section class="dashboard-grid dashboard-grid-charts">
-        <article class="dashboard-card stock-card" id="stock-health">
-            <div class="card-heading">
-                <div>
-                    <h2>Kesehatan stok</h2>
-                    <p>Persediaan dibanding batas minimum</p>
-                </div>
-                <a class="text-link" href="#stock-health">Total {{ $lowStockCount }} perlu restok <span aria-hidden="true">→</span></a>
-            </div>
-
-            <div class="stock-chart" role="img" aria-label="Persediaan enam bahan terdekat dengan batas minimum">
-                @forelse ($stockItems as $stock)
-                    <div class="stock-column">
-                        <span class="stock-percent {{ $stock['state'] }}">{{ $stock['level'] }}%</span>
-                        <div class="stock-track">
-                            <span class="stock-fill {{ $stock['state'] }}" style="height: {{ $stock['level'] }}%"></span>
-                        </div>
-                        <span class="stock-name" title="{{ $stock['name'] }}">{{ \Illuminate\Support\Str::limit($stock['name'], 12) }}</span>
-                        <span class="stock-quantity">{{ rtrim(rtrim(number_format($stock['quantity'], 3, ',', '.'), '0'), ',') }} {{ $stock['unit'] }}</span>
-                    </div>
-                @empty
-                    <p class="dashboard-empty">Belum ada data bahan baku.</p>
-                @endforelse
-            </div>
-        </article>
-
-        <article class="dashboard-card attendance-card" id="absensi">
+    <section class="dashboard-grid dashboard-grid-attendance">
+        <article class="dashboard-card attendance-card attendance-card-featured" id="absensi">
             <div class="card-heading">
                 <div>
                     <h2>Absensi 7 hari</h2>
@@ -88,7 +63,32 @@
         </article>
     </section>
 
-    <section class="dashboard-grid dashboard-grid-lower">
+    <section class="dashboard-grid dashboard-grid-support">
+        <article class="dashboard-card stock-card" id="stock-health">
+            <div class="card-heading">
+                <div>
+                    <h2>Kesehatan stok</h2>
+                    <p>Persediaan dibanding batas minimum</p>
+                </div>
+                <a class="text-link" href="#stock-health">Total {{ $lowStockCount }} perlu restok <span aria-hidden="true">→</span></a>
+            </div>
+
+            <div class="stock-chart" role="img" aria-label="Persediaan enam bahan terdekat dengan batas minimum">
+                @forelse ($stockItems as $stock)
+                    <div class="stock-column">
+                        <span class="stock-percent {{ $stock['state'] }}">{{ $stock['level'] }}%</span>
+                        <div class="stock-track">
+                            <span class="stock-fill {{ $stock['state'] }}" style="height: {{ $stock['level'] }}%"></span>
+                        </div>
+                        <span class="stock-name" title="{{ $stock['name'] }}">{{ \Illuminate\Support\Str::limit($stock['name'], 12) }}</span>
+                        <span class="stock-quantity">{{ rtrim(rtrim(number_format($stock['quantity'], 3, ',', '.'), '0'), ',') }} {{ $stock['unit'] }}</span>
+                    </div>
+                @empty
+                    <p class="dashboard-empty">Belum ada data bahan baku.</p>
+                @endforelse
+            </div>
+        </article>
+
         <article class="dashboard-card activity-card" id="recent-activity">
             <div class="card-heading activity-heading">
                 <div>
@@ -110,7 +110,9 @@
                 @endforelse
             </div>
         </article>
+    </section>
 
+    <section class="dashboard-grid dashboard-grid-quick">
         <article class="dashboard-card quick-card">
             <div class="card-heading">
                 <div>

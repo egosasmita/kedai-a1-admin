@@ -11,20 +11,19 @@
     <x-admin.validation-errors />
     <section class="attendance-top">
         <article class="attendance-clock">
-            <div><span class="ops-kicker">{{ now()->locale('id')->translatedFormat('l, j F Y') }}</span><strong>{{ now()->format('H:i') }}</strong><small>{{ $currentShift ? $currentShift->name.' sedang berjalan' : 'Tidak ada shift aktif saat ini' }}</small></div>
+            <div><span class="ops-kicker">{{ now()->locale('id')->translatedFormat('l, j F Y') }}</span><strong>{{ now()->format('H:i') }}</strong><small>{{ $currentShift ? $currentShift->name.' · jendela absensi aktif' : 'Tidak ada jendela absensi shift saat ini' }}</small></div>
             @if ($date->isToday())
                 <div class="attendance-actions">
                     <form method="POST" action="{{ route('admin.attendance.check-in') }}">
                         @csrf
                         <label class="sr-only" for="check-in-user">Pilih karyawan untuk check in</label>
-                        <select id="check-in-user" name="user_id" required><option value="">Pilih karyawan</option>@foreach ($employees as $employee)@if (!$employee->attendance_id)<option value="{{ $employee->id }}">{{ $employee->name }}</option>@endif @endforeach</select>
-                        <input type="hidden" name="shift_id" value="{{ $currentShift?->id }}">
+                        <select id="check-in-user" name="user_id" required><option value="">Pilih karyawan</option>@foreach ($checkInEmployees as $employee)<option value="{{ $employee->id }}">{{ $employee->name }} · {{ $employee->assigned_shift_name }}</option>@endforeach</select>
                         <button class="attendance-action-button is-gold" type="submit">◎<span>Check In</span></button>
                     </form>
                     <form method="POST" action="{{ route('admin.attendance.check-out') }}">
                         @csrf
                         <label class="sr-only" for="check-out-user">Pilih karyawan untuk check out</label>
-                        <select id="check-out-user" name="user_id" required><option value="">Pilih karyawan</option>@foreach ($employees as $employee)@if ($employee->check_in_at && !$employee->check_out_at)<option value="{{ $employee->id }}">{{ $employee->name }}</option>@endif @endforeach</select>
+                        <select id="check-out-user" name="user_id" required><option value="">Pilih karyawan</option>@foreach ($checkOutEmployees as $employee)<option value="{{ $employee->id }}">{{ $employee->name }} · {{ $employee->shift_name }}</option>@endforeach</select>
                         <button class="attendance-action-button" type="submit">⇥<span>Check Out</span></button>
                     </form>
                 </div>
@@ -51,8 +50,7 @@
         </form>
     </section>
 
-    <section class="ops-two-column attendance-workspace">
-        <article class="dashboard-card ops-table-card">
+    <section class="dashboard-card ops-table-card">
             <div class="menu-list-heading"><div><h2>Rekap harian</h2><p>{{ $employees->count() }} karyawan untuk {{ $date->locale('id')->translatedFormat('j F Y') }}</p></div></div>
             @if ($employees->isEmpty())
                 <div class="menu-empty-state"><h3>Belum ada karyawan aktif</h3><p>Tambahkan karyawan untuk mulai mengelola absensi.</p></div>
@@ -80,8 +78,8 @@
                     </table>
                 </div>
             @endif
-        </article>
-        <article class="dashboard-card ops-month-card">
+    </section>
+    <section class="dashboard-card ops-month-card ops-full-width-card">
             <div class="card-heading"><div><h2>Rekap bulanan</h2><p>{{ $date->locale('id')->translatedFormat('F Y') }} · seluruh tim</p></div></div>
             @php
                 $denominator = max(1, (int) $monthSummary->recorded);
@@ -97,6 +95,5 @@
                 <div><span>Tidak hadir</span><strong>{{ (int) $monthSummary->absent }}</strong></div>
             </div>
             <p class="ops-help">Persentase menunjukkan kehadiran (hadir dan terlambat) dibandingkan seluruh catatan absensi pada bulan ini.</p>
-        </article>
     </section>
 @endsection

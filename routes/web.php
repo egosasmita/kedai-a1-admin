@@ -20,6 +20,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/stok/transaksi', [StockController::class, 'storeTransaction'])->name('stock.transactions.store');
     Route::get('/karyawan', [EmployeeController::class, 'index'])->name('employees.index');
     Route::post('/karyawan', [EmployeeController::class, 'store'])->name('employees.store');
+    Route::patch('/karyawan/{userId}/shift', [EmployeeController::class, 'updateShift'])->whereNumber('userId')->name('employees.shift.update');
     Route::get('/absensi', [AttendanceController::class, 'index'])->name('attendance.index');
     Route::post('/absensi/check-in', [AttendanceController::class, 'checkIn'])->name('attendance.check-in');
     Route::post('/absensi/check-out', [AttendanceController::class, 'checkOut'])->name('attendance.check-out');

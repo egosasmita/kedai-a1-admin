@@ -131,13 +131,14 @@
                     ? (\Illuminate\Support\Str::startsWith($editingMenu->image_url, ['http://', 'https://']) ? $editingMenu->image_url : \Illuminate\Support\Facades\Storage::disk('public')->url($editingMenu->image_url))
                     : null;
             @endphp
-            <aside class="dashboard-card menu-editor-card">
+            <div class="menu-modal-overlay" data-menu-modal role="dialog" aria-modal="true" aria-labelledby="menu-editor-title">
+                <section class="dashboard-card menu-editor-card">
                 <div class="menu-editor-heading">
                     <div>
-                        <h2>{{ $isEditing ? 'Edit menu' : 'Tambah menu' }}</h2>
+                        <h2 id="menu-editor-title">{{ $isEditing ? 'Edit menu' : 'Tambah menu' }}</h2>
                         <p>{{ $isEditing ? 'Perubahan disimpan setelah dikonfirmasi' : 'Lengkapi detail menu baru' }}</p>
                     </div>
-                    <a class="editor-close" href="{{ route('admin.menus.index') }}" aria-label="Tutup form">×</a>
+                    <a class="editor-close" href="{{ route('admin.menus.index') }}" aria-label="Tutup form" data-menu-modal-close>×</a>
                 </div>
 
                 <form class="menu-editor-form" action="{{ $formAction }}" method="POST" enctype="multipart/form-data">
@@ -255,7 +256,8 @@
                         @method('DELETE')
                     </form>
                 @endif
-            </aside>
+                </section>
+            </div>
         @endif
     </section>
 
@@ -271,5 +273,24 @@
             preview.hidden = false;
             document.querySelector("#menu-image-placeholder").hidden = true;
         });
+
+        const menuModal = document.querySelector("[data-menu-modal]");
+
+        if (menuModal) {
+            document.body.classList.add("has-menu-modal");
+            menuModal.querySelector("input[name='name']")?.focus({ preventScroll: true });
+
+            menuModal.addEventListener("click", (event) => {
+                if (event.target === menuModal) {
+                    window.location.assign("{{ route('admin.menus.index') }}");
+                }
+            });
+
+            document.addEventListener("keydown", (event) => {
+                if (event.key === "Escape") {
+                    window.location.assign("{{ route('admin.menus.index') }}");
+                }
+            });
+        }
     </script>
 @endsection

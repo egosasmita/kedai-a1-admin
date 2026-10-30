@@ -51,7 +51,12 @@ class EmployeeController extends Controller
                 'employee_profiles.hired_at',
                 'employee_profiles.base_salary',
                 'employee_profiles.employment_status',
+                'employee_profiles.shift_id as shift_id',
+                'shifts.name as shift_name',
+                'shifts.starts_at as shift_starts_at',
+                'shifts.ends_at as shift_ends_at',
             ])
+            ->leftJoin('shifts', 'shifts.id', '=', 'employee_profiles.shift_id')
             ->orderBy('users.name')
             ->paginate(8)
             ->withQueryString();
@@ -70,6 +75,7 @@ class EmployeeController extends Controller
         return view('admin.employees.index', [
             'employees' => $employees,
             'counts' => $counts,
+            'shifts' => DB::table('shifts')->where('is_active', true)->orderBy('sort_order')->get(),
         ]);
     }
 
@@ -81,6 +87,7 @@ class EmployeeController extends Controller
             'password' => ['required', 'string', 'min:12', 'confirmed'],
             'employee_number' => ['nullable', 'string', 'max:30', 'unique:employee_profiles,employee_number'],
             'position' => ['required', 'string', 'max:100'],
+            'shift_id' => ['required', 'integer', Rule::exists('shifts', 'id')->where(fn (Builder $query) => $query->where('is_active', true))],
             'hired_at' => ['nullable', 'date', 'before_or_equal:today'],
             'base_salary' => ['required', 'numeric', 'min:0', 'max:9999999999.99'],
         ]);
@@ -97,6 +104,7 @@ class EmployeeController extends Controller
                 'user_id' => $user->id,
                 'employee_number' => filled($validated['employee_number'] ?? null) ? trim($validated['employee_number']) : null,
                 'position' => trim($validated['position']),
+                'shift_id' => $validated['shift_id'],
                 'hired_at' => $validated['hired_at'] ?? null,
                 'base_salary' => $validated['base_salary'],
                 'employment_status' => 'active',
@@ -106,5 +114,28 @@ class EmployeeController extends Controller
         });
 
         return redirect()->route('admin.employees.index')->with('status', 'Akun dan profil karyawan berhasil dibuat.');
+    }
+
+    public function updateShift(Request $request, int $userId): RedirectResponse
+    {
+        $validated = $request->validate([
+            'shift_id' => ['required', 'integer', Rule::exists('shifts', 'id')->where(fn (Builder $query) => $query->where('is_active', true))],
+        ]);
+        $profile = DB::table('employee_profiles')
+            ->join('users', 'users.id', '=', 'employee_profiles.user_id')
+            ->where('employee_profiles.user_id', $userId)
+            ->where('users.is_admin', false)
+            ->first(['employee_profiles.user_id']);
+
+        if ($profile === null) {
+            abort(404);
+        }
+
+        DB::table('employee_profiles')->where('user_id', $userId)->update([
+            'shift_id' => $validated['shift_id'],
+            'updated_at' => now(),
+        ]);
+
+        return redirect()->route('admin.employees.index')->with('status', 'Shift tetap karyawan berhasil diperbarui.');
     }
 }

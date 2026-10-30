@@ -15,7 +15,7 @@
             <select name="status" aria-label="Filter status"><option value="">Semua status</option><option value="active" @selected(request('status') === 'active')>Aktif</option><option value="inactive" @selected(request('status') === 'inactive')>Nonaktif</option><option value="resigned" @selected(request('status') === 'resigned')>Resign</option></select>
             <button class="filter-submit" type="submit">Cari</button>
         </form>
-        <a class="button button-primary" href="#form-karyawan">+ Tambah karyawan</a>
+        <button class="button button-primary" type="button" data-dialog-open="employee-create-dialog">+ Tambah karyawan</button>
     </section>
     <section class="stats-grid ops-stats" aria-label="Ringkasan karyawan">
         <article class="stat-card"><div class="stat-topline"><span>Total karyawan</span><span class="stat-icon">♙</span></div><div class="stat-bottomline"><strong>{{ number_format((int) $counts->total, 0, ',', '.') }}</strong><span>terdaftar</span></div></article>
@@ -24,15 +24,14 @@
         <article class="stat-card stat-card-dark"><div class="stat-topline"><span>Resign</span><span class="stat-icon">↗</span></div><div class="stat-bottomline"><strong>{{ number_format((int) $counts->resigned, 0, ',', '.') }}</strong><span>akun nonaktif permanen</span></div></article>
     </section>
 
-    <section class="ops-two-column employee-workspace">
-        <article class="dashboard-card ops-table-card">
+    <section class="dashboard-card ops-table-card">
             <div class="menu-list-heading"><div><h2>Daftar karyawan</h2><p>{{ $employees->total() }} akun karyawan</p></div></div>
             @if ($employees->isEmpty())
                 <div class="menu-empty-state"><span class="menu-empty-icon">♙</span><h3>Belum ada karyawan</h3><p>Buat profil untuk menambahkan anggota tim Kedai A1.</p></div>
             @else
                 <div class="menu-table-scroll">
                     <table class="menu-table ops-table employee-table">
-                        <thead><tr><th>KARYAWAN</th><th>ID / JABATAN</th><th>BERGABUNG</th><th>GAJI POKOK</th><th>STATUS</th></tr></thead>
+                        <thead><tr><th>KARYAWAN</th><th>ID / JABATAN</th><th>SHIFT TETAP</th><th>BERGABUNG</th><th>GAJI POKOK</th><th>STATUS</th></tr></thead>
                         <tbody>
                         @foreach ($employees as $employee)
                             @php
@@ -42,6 +41,22 @@
                             <tr>
                                 <td><div class="ops-person"><span class="employee-avatar">{{ $initials }}</span><span class="employee-info"><strong>{{ $employee->name }}</strong><small>{{ $employee->email }}</small></span></div></td>
                                 <td><strong>{{ $employee->employee_number ?: '—' }}</strong><small class="ops-block">{{ $employee->position ?: 'Profil belum dilengkapi' }}</small></td>
+                                <td>
+                                    <strong>{{ $employee->shift_name ?? 'Belum ditentukan' }}</strong>
+                                    <small class="ops-block">{{ $employee->shift_starts_at ? \Illuminate\Support\Carbon::parse($employee->shift_starts_at)->format('H:i').'–'.\Illuminate\Support\Carbon::parse($employee->shift_ends_at)->format('H:i') : 'Hubungi admin' }}</small>
+                                    @if ($shifts->isNotEmpty())
+                                        <form action="{{ route('admin.employees.shift.update', $employee->id) }}" method="POST" class="employee-shift-form">
+                                            @csrf
+                                            @method('PATCH')
+                                            <select name="shift_id" aria-label="Ubah shift {{ $employee->name }}">
+                                                @foreach ($shifts as $shift)
+                                                    <option value="{{ $shift->id }}" @selected((string) $employee->shift_id === (string) $shift->id)>{{ $shift->name }}</option>
+                                                @endforeach
+                                            </select>
+                                            <button class="button button-light" type="submit">Ubah</button>
+                                        </form>
+                                    @endif
+                                </td>
                                 <td>{{ $employee->hired_at ? \Illuminate\Support\Carbon::parse($employee->hired_at)->locale('id')->translatedFormat('d M Y') : '—' }}</td>
                                 <td>{{ $employee->base_salary !== null ? 'Rp '.number_format((float) $employee->base_salary, 0, ',', '.') : '—' }}</td>
                                 <td><span class="ops-badge is-{{ $status }}">{{ ['active' => 'Aktif', 'inactive' => 'Nonaktif', 'resigned' => 'Resign'][$status] ?? $status }}</span></td>
@@ -52,10 +67,14 @@
                 </div>
                 <div class="menu-pagination"><span>Menampilkan {{ $employees->firstItem() }}–{{ $employees->lastItem() }} dari {{ $employees->total() }}</span>{{ $employees->onEachSide(1)->links('pagination::simple-tailwind') }}</div>
             @endif
-        </article>
+    </section>
 
-        <aside class="dashboard-card ops-editor-card" id="form-karyawan">
-            <div class="menu-editor-heading"><div><h2>Tambah karyawan</h2><p>Akun login baru dengan akses karyawan</p></div></div>
+    <dialog class="ops-dialog" id="employee-create-dialog" aria-labelledby="employee-create-title" @if ($errors->any()) data-open-on-load @endif>
+        <section class="dashboard-card ops-editor-card">
+            <div class="menu-editor-heading">
+                <div><h2 id="employee-create-title">Tambah karyawan</h2><p>Akun login baru dengan akses karyawan</p></div>
+                <button class="editor-close" type="button" data-dialog-close aria-label="Tutup form">×</button>
+            </div>
             <form class="menu-editor-form" action="{{ route('admin.employees.store') }}" method="POST">
                 @csrf
                 <label class="menu-form-field"><span>Nama lengkap</span><input name="name" value="{{ old('name') }}" autocomplete="name" required>@error('name')<small class="field-error">{{ $message }}</small>@enderror</label>
@@ -64,14 +83,24 @@
                     <label class="menu-form-field"><span>Jabatan</span><input name="position" value="{{ old('position') }}" placeholder="Barista" required maxlength="100">@error('position')<small class="field-error">{{ $message }}</small>@enderror</label>
                     <label class="menu-form-field"><span>ID karyawan</span><input name="employee_number" value="{{ old('employee_number') }}" maxlength="30">@error('employee_number')<small class="field-error">{{ $message }}</small>@enderror</label>
                 </div>
+                <label class="menu-form-field"><span>Shift tetap</span>
+                    <select name="shift_id" required>
+                        <option value="">Pilih shift</option>
+                        @foreach ($shifts as $shift)
+                            <option value="{{ $shift->id }}" @selected((string) old('shift_id') === (string) $shift->id)>{{ $shift->name }} · {{ \Illuminate\Support\Carbon::parse($shift->starts_at)->format('H:i') }}–{{ \Illuminate\Support\Carbon::parse($shift->ends_at)->format('H:i') }}</option>
+                        @endforeach
+                    </select>
+                    @if ($shifts->isEmpty())<small class="menu-field-hint">Belum ada shift aktif. Buat shift sebelum menambahkan karyawan.</small>@endif
+                    @error('shift_id')<small class="field-error">{{ $message }}</small>@enderror
+                </label>
                 <div class="menu-form-row">
                     <label class="menu-form-field"><span>Tanggal bergabung</span><input type="date" name="hired_at" value="{{ old('hired_at') }}" max="{{ today()->toDateString() }}">@error('hired_at')<small class="field-error">{{ $message }}</small>@enderror</label>
                     <label class="menu-form-field"><span>Gaji pokok (Rp)</span><input type="number" name="base_salary" value="{{ old('base_salary') }}" min="0" step="1000" required>@error('base_salary')<small class="field-error">{{ $message }}</small>@enderror</label>
                 </div>
                 <label class="menu-form-field"><span>Kata sandi sementara</span><input type="password" name="password" autocomplete="new-password" minlength="12" required><small class="menu-field-hint">Minimal 12 karakter. Bagikan secara aman kepada karyawan.</small>@error('password')<small class="field-error">{{ $message }}</small>@enderror</label>
                 <label class="menu-form-field"><span>Ulangi kata sandi</span><input type="password" name="password_confirmation" autocomplete="new-password" minlength="12" required></label>
-                <button class="button button-primary menu-save-button" type="submit">Simpan karyawan</button>
+                <button class="button button-primary menu-save-button" type="submit" @disabled($shifts->isEmpty())>Simpan karyawan</button>
             </form>
-        </aside>
-    </section>
+        </section>
+    </dialog>
 @endsection
